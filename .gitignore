@@ -1,0 +1,5 @@
+**/target
+**/.claude/
+**/.~lock*
+Thumbs.db
+local.properties

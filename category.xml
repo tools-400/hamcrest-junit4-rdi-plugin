@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<site>
+   <feature id="de.tools400.hamcrest.junit4.feature" version="0.0.0">
+      <category name="category"/>
+   </feature>
+   <category-def name="category" label="Hamcrest 2.2 for the JUnit 4 container (RDi 9.9)">
+      <description>
+         Adds org.hamcrest 2.2.0, which the JUnit 4 classpath container of RDi 9.9 needs.
+      </description>
+   </category-def>
+</site>

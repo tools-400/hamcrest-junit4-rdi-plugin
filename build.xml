@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Builds the archived update site "Hamcrest 2.2 for the JUnit 4 container (RDi 9.9)".
+
+  Run it in RDi with Run As > Ant Build, or on the command line with "ant" in this folder.
+  Needs Ant 1.9 or later and an Eclipse 4.31 installation (property eclipse.home): its eclipsec.exe
+  runs the p2 publisher, and its plugins folder provides org.hamcrest 2.2.0 and its source bundle.
+  Local values (eclipse.home, site.dir) go into the file local.properties, which git ignores.
+-->
+<project name="Hamcrest 2.2 for JUnit 4" default="build" basedir=".">
+
+    <property file="local.properties" />
+
+    <property name="eclipse.home" location="C:/IBM/Eclipse_4.31" />
+    <property name="feature.id" value="de.tools400.hamcrest.junit4.feature" />
+    <property name="feature.version" value="1.0.0.r" />
+    <property name="hamcrest.version" value="2.2.0" />
+    <property name="repository.name" value="Hamcrest 2.2 for the JUnit 4 container (RDi 9.9)" />
+    <property name="category.qualifier" value="de.tools400.hamcrest.junit4" />
+
+    <!-- The archived update site. -->
+    <property name="site.dir" location="${basedir}/target" />
+    <property name="site.zip.file" location="${site.dir}/Hamcrest-2.2-for-JUnit-4-RDi 9.9_${feature.version}.zip" />
+
+    <!-- The p2 publisher does not take characters, that a URI encodes (blanks, umlauts, #), in the
+         paths of the repository: it works in a folder of its own below work.parent, which the
+         build deletes. -->
+    <property name="work.parent" location="${java.io.tmpdir}" />
+    <property name="work.dir" location="${work.parent}/hamcrest-junit4-build" />
+
+    <property name="eclipsec" location="${eclipse.home}/eclipsec.exe" />
+    <property name="hamcrest.jar" location="${eclipse.home}/plugins/org.hamcrest_${hamcrest.version}.jar" />
+    <property name="hamcrest.source.jar" location="${eclipse.home}/plugins/org.hamcrest.source_${hamcrest.version}.jar" />
+
+    <target name="build" depends="check, clean, prepare, publish, createZipFile" description="Builds the archived update site" />
+
+    <target name="check">
+        <fail message="Missing ${eclipsec}. Set the property eclipse.home to an Eclipse 4.31 installation.">
+            <condition>
+                <not><available file="${eclipsec}" /></not>
+            </condition>
+        </fail>
+        <fail message="Missing ${hamcrest.jar}.">
+            <condition>
+                <not><available file="${hamcrest.jar}" /></not>
+            </condition>
+        </fail>
+        <fail message="Missing ${hamcrest.source.jar}.">
+            <condition>
+                <not><available file="${hamcrest.source.jar}" /></not>
+            </condition>
+        </fail>
+        <fail message="The work folder ${work.dir} contains a character, that the p2 publisher does not take. Set the property work.parent to a folder, whose path has only the letters A-Z, digits and . _ - ~.">
+            <condition>
+                <not><matches string="${work.dir}" pattern="^[A-Za-z0-9:/\\._~-]+$" /></not>
+            </condition>
+        </fail>
+    </target>
+
+    <target name="clean" depends="cleanWorkFolder">
+        <delete file="${site.zip.file}" />
+    </target>
+
+    <target name="cleanWorkFolder">
+        <delete dir="${work.dir}" />
+    </target>
+
+    <target name="prepare">
+        <mkdir dir="${work.dir}/source/features" />
+        <mkdir dir="${work.dir}/source/plugins" />
+        <zip destfile="${work.dir}/source/features/${feature.id}_${feature.version}.jar" basedir="feature" includes="feature.xml" />
+        <copy todir="${work.dir}/source/plugins" preservelastmodified="true">
+            <fileset file="${hamcrest.jar}" />
+            <fileset file="${hamcrest.source.jar}" />
+        </copy>
+        <copy file="category.xml" todir="${work.dir}" />
+        <makeurl file="${work.dir}/repo" property="repository.url" validate="false" />
+        <makeurl file="${work.dir}/category.xml" property="category.url" />
+    </target>
+
+    <!-- launcher.suppressErrors: on an error eclipsec.exe would open a window and wait for it. -->
+    <target name="publish">
+        <exec executable="${eclipsec}" failonerror="true">
+            <arg value="--launcher.suppressErrors" />
+            <arg value="-nosplash" />
+            <arg value="-consoleLog" />
+            <arg value="-data" />
+            <arg file="${work.dir}/workspace" />
+            <arg value="-application" />
+            <arg value="org.eclipse.equinox.p2.publisher.FeaturesAndBundlesPublisher" />
+            <arg value="-metadataRepository" />
+            <arg value="${repository.url}" />
+            <arg value="-artifactRepository" />
+            <arg value="${repository.url}" />
+            <arg value="-metadataRepositoryName" />
+            <arg value="${repository.name}" />
+            <arg value="-artifactRepositoryName" />
+            <arg value="${repository.name}" />
+            <arg value="-source" />
+            <arg file="${work.dir}/source" />
+            <arg value="-compress" />
+            <arg value="-publishArtifacts" />
+        </exec>
+        <exec executable="${eclipsec}" failonerror="true">
+            <arg value="--launcher.suppressErrors" />
+            <arg value="-nosplash" />
+            <arg value="-consoleLog" />
+            <arg value="-data" />
+            <arg file="${work.dir}/workspace" />
+            <arg value="-application" />
+            <arg value="org.eclipse.equinox.p2.publisher.CategoryPublisher" />
+            <arg value="-metadataRepository" />
+            <arg value="${repository.url}" />
+            <arg value="-categoryDefinition" />
+            <arg value="${category.url}" />
+            <arg value="-categoryQualifier" />
+            <arg value="${category.qualifier}" />
+            <arg value="-compress" />
+        </exec>
+        <fail message="The p2 publisher did not create ${work.dir}/repo/content.jar.">
+            <condition>
+                <not><available file="${work.dir}/repo/content.jar" /></not>
+            </condition>
+        </fail>
+        <fail message="The p2 publisher did not create the feature in ${work.dir}/repo/features.">
+            <condition>
+                <not><available file="${work.dir}/repo/features/${feature.id}_${feature.version}.jar" /></not>
+            </condition>
+        </fail>
+    </target>
+
+    <target name="createZipFile">
+        <mkdir dir="${site.dir}" />
+        <zip destfile="${site.zip.file}" basedir="${work.dir}/repo" />
+        <echo message="Created: ${site.zip.file}" />
+        <!-- Ant runs the target cleanWorkFolder only once per build, before: delete here. -->
+        <delete dir="${work.dir}" />
+    </target>
+
+</project>
