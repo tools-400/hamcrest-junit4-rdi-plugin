@@ -292,18 +292,23 @@
         </fail>
     </target>
 
-    <!-- The clone: no changes, HEAD = main on GitHub, an existing tag on HEAD. -->
+    <!-- The clone: no changes in the inputs of the ZIP, HEAD = main on GitHub, an existing tag on HEAD.
+         Only the inputs count: RDi writes the chosen target into the launch configuration. -->
     <target name="releaseCheckClone">
         <exec executable="${git}" dir="${basedir}" outputproperty="git.status" errorproperty="git.status.err" resultproperty="git.status.rc">
             <arg value="status" />
             <arg value="--porcelain" />
+            <arg value="--" />
+            <arg value="build.xml" />
+            <arg value="category.xml" />
+            <arg value="feature" />
         </exec>
         <fail message="git status failed: ${git.status.err}">
             <condition>
                 <not><equals arg1="${git.status.rc}" arg2="0" /></not>
             </condition>
         </fail>
-        <fail message="The clone has changes; the ZIP must be built from the commit of the tag. Commit and push first:${line.separator}${git.status}">
+        <fail message="The inputs of the ZIP have changes; the ZIP must be built from the commit of the tag. Commit and push first:${line.separator}${git.status}">
             <condition>
                 <not><equals arg1="${git.status}" arg2="" /></not>
             </condition>

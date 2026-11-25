@@ -39,12 +39,12 @@ Requirements: git and the GitHub CLI (`gh`), logged in with write access to
    `ant release`.
 
    The target checks that the version is a release version, that neither the release nor a draft
-   of it exists, that an existing tag `v<version>` is on `HEAD`, that the clone has no changes and
-   that `HEAD` is `main` on GitHub; for a new tag also that `user.name` and `user.email` are set in
-   the git configuration. Then it builds the ZIP, shows the commit, the tag, the texts and the file
-   (the tag message and the tagger only for a new tag), and asks for confirmation. It creates the
-   annotated tag `v<version>` on `HEAD` with the GitHub API and the release
-   `Hamcrest 2.2 for JUnit 4 v<version>` with the ZIP file.
+   of it exists, that an existing tag `v<version>` is on `HEAD`, that `build.xml`, `category.xml`
+   and `feature/` have no changes and that `HEAD` is `main` on GitHub; for a new tag also that
+   `user.name` and `user.email` are set in the git configuration. Then it builds the ZIP, shows the
+   commit, the tag, the texts and the file (the tag message and the tagger only for a new tag), and
+   asks for confirmation. It creates the annotated tag `v<version>` on `HEAD` with the GitHub API
+   and the release `Hamcrest 2.2 for JUnit 4 v<version>` with the ZIP file.
 
    A tagger with characters beyond ASCII needs Ant in a JVM with `-Dfile.encoding=UTF-8`, e.g. on
    the console with `ANT_OPTS=-Dfile.encoding=UTF-8`; another `-Dfile.encoding`, e.g. `Cp1252` in
