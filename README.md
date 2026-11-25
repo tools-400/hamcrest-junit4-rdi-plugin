@@ -14,26 +14,19 @@ installed.
 ## Requirements
 
 * RDi 9.9.
-* For building the update site: Ant 1.9 or later, e.g. the Ant of RDi, and an installation of
-  Eclipse 4.31 (2024-03), that contains the bundles `org.hamcrest` 2.2.0 and
-  `org.hamcrest.source` 2.2.0.
 
 ## Installation
 
-1. Build the archived update site: run `build.xml` with *Run As > Ant Build* in RDi, or `ant` in
-   the folder of the project. If Eclipse 4.31 is not installed in `C:/IBM/Eclipse_4.31`, set its
-   folder in the file `local.properties` next to `build.xml`:
-
-   ```properties
-   eclipse.home=D:/eclipse-4.31
-   ```
-
-   The build writes `target/Hamcrest-2.2-for-JUnit-4-RDi 9.9_1.0.0.r.zip`. The property
-   `site.dir` in `local.properties` sets another folder.
+1. Download the ZIP file of the
+   [latest release](https://github.com/tools-400/hamcrest-junit4-rdi-plugin/releases/latest).
 2. Choose *Help > Install New Software...* in RDi 9.9, click *Add... > Archive...* and select the
    ZIP file.
 3. Select *Hamcrest 2.2 for the JUnit 4 container*, finish the wizard and restart RDi.
 4. If the error is still shown, choose *Project > Clean...* for the affected projects.
+
+## For developers
+
+How to build the update site and how to publish a release: [DEVELOPMENT.md](DEVELOPMENT.md).
 
 ## Liability
 

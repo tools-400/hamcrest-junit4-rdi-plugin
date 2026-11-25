@@ -1,26 +1,35 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Builds the archived update site "Hamcrest 2.2 for the JUnit 4 container (RDi 9.9)".
+  Builds the archived update site "Hamcrest 2.2 for the JUnit 4 container (RDi 9.9)" and publishes it
+  as a GitHub release.
 
   Run it in RDi with Run As > Ant Build, or on the command line with "ant" in this folder.
-  Needs Ant 1.9 or later and an Eclipse 4.31 installation (property eclipse.home): its eclipsec.exe
+  Needs Ant 1.9.1 or later and an Eclipse 4.31 installation (property eclipse.home): its eclipsec.exe
   runs the p2 publisher, and its plugins folder provides org.hamcrest 2.2.0 and its source bundle.
-  Local values (eclipse.home, site.dir) go into the file local.properties, which git ignores.
+  The target release needs git and the GitHub CLI (gh), logged in with write access to the repository.
+  Local values (eclipse.home, site.dir, work.parent, gh, git) go into the file local.properties,
+  which git ignores. The version is the one of feature/feature.xml.
+
+  Targets:
+    build    builds target/Hamcrest-2.2-for-JUnit-4-RDi-9.9_<version>.zip (default)
+    release  checks, builds and creates the tag v<version> and the GitHub release with the ZIP;
+             -Drelease.dry.run=true checks and builds only and shows what it would create
 -->
 <project name="Hamcrest 2.2 for JUnit 4" default="build" basedir=".">
 
     <property file="local.properties" />
 
+    <!-- feature.id and feature.version from the attributes of the element feature. -->
+    <xmlproperty file="feature/feature.xml" collapseAttributes="true" />
+
     <property name="eclipse.home" location="C:/IBM/Eclipse_4.31" />
-    <property name="feature.id" value="de.tools400.hamcrest.junit4.feature" />
-    <property name="feature.version" value="1.0.0.r" />
     <property name="hamcrest.version" value="2.2.0" />
     <property name="repository.name" value="Hamcrest 2.2 for the JUnit 4 container (RDi 9.9)" />
     <property name="category.qualifier" value="de.tools400.hamcrest.junit4" />
 
     <!-- The archived update site. -->
     <property name="site.dir" location="${basedir}/target" />
-    <property name="site.zip.file" location="${site.dir}/Hamcrest-2.2-for-JUnit-4-RDi 9.9_${feature.version}.zip" />
+    <property name="site.zip.file" location="${site.dir}/Hamcrest-2.2-for-JUnit-4-RDi-9.9_${feature.version}.zip" />
 
     <!-- The p2 publisher does not take characters, that a URI encodes (blanks, umlauts, #), in the
          paths of the repository: it works in a folder of its own below work.parent, which the
@@ -135,6 +144,343 @@
         <echo message="Created: ${site.zip.file}" />
         <!-- Ant runs the target cleanWorkFolder only once per build, before: delete here. -->
         <delete dir="${work.dir}" />
+    </target>
+
+    <!--
+      Release: the tag v<version> and the GitHub release with the ZIP, created with the GitHub CLI.
+      No argument of git or gh contains a double quote: Java does not escape it on Windows, and gh
+      would get the argument split. Ant compares the answers itself.
+      Order of the checks: version, state on GitHub, then the clone (clean, pushed), then the build.
+    -->
+    <property name="github.repository" value="tools-400/hamcrest-junit4-rdi-plugin" />
+    <property name="gh" value="gh" />
+    <property name="git" value="git" />
+    <property name="release.dry.run" value="false" />
+    <property name="release.tag" value="v${feature.version}" />
+    <property name="release.tag.message" value="Tag ${release.tag}." />
+    <property name="release.title" value="Hamcrest 2.2 for JUnit 4 ${release.tag}" />
+    <property name="release.notes" value="Archived update site for RDi 9.9. Install it with Help &gt; Install New Software &gt; Add &gt; Archive." />
+
+    <target name="release" description="Builds the ZIP and creates the tag and the GitHub release (-Drelease.dry.run=true: checks and build only)"
+            depends="releaseCheckVersion, releaseCheckRelease, releaseCheckTag, releaseCheckTagSha, releaseCheckTagCommit, releaseCheckClone, build, releaseShow, releaseConfirm, releaseCreateTag, releaseCreateRelease" />
+
+    <target name="releaseCheckVersion">
+        <fail message="${feature.version} in feature/feature.xml is no release version (x.y.z.r).">
+            <condition>
+                <not><matches string="${feature.version}" pattern="^[0-9]+\.[0-9]+\.[0-9]+\.r$" /></not>
+            </condition>
+        </fail>
+        <condition property="release.write">
+            <not><istrue value="${release.dry.run}" /></not>
+        </condition>
+    </target>
+
+    <!-- The release must not exist, neither published nor as a draft. -->
+    <target name="releaseCheckRelease">
+        <exec executable="${gh}" outputproperty="gh.drafts" errorproperty="gh.drafts.err" resultproperty="gh.drafts.rc">
+            <arg value="release" />
+            <arg value="list" />
+            <arg value="-R" />
+            <arg value="${github.repository}" />
+            <arg value="--limit" />
+            <arg value="1000" />
+            <arg value="--json" />
+            <arg value="tagName,isDraft" />
+            <arg value="--jq" />
+            <arg value=".[]|select(.isDraft)|.tagName" />
+        </exec>
+        <fail message="gh could not list the releases: ${gh.drafts.err}">
+            <condition>
+                <not><equals arg1="${gh.drafts.rc}" arg2="0" /></not>
+            </condition>
+        </fail>
+        <exec executable="${gh}" outputproperty="gh.release.draft" errorproperty="gh.release.err" resultproperty="gh.release.rc">
+            <arg value="release" />
+            <arg value="view" />
+            <arg value="${release.tag}" />
+            <arg value="-R" />
+            <arg value="${github.repository}" />
+            <arg value="--json" />
+            <arg value="isDraft" />
+            <arg value="--jq" />
+            <arg value=".isDraft" />
+        </exec>
+        <!-- A draft in the list or from view. Ant joins the lines of the list with line.separator,
+             on Windows CR LF: \r? before the end of a line. -->
+        <fail message="A draft release ${release.tag} exists, e.g. of an aborted upload. Delete it first: gh release delete ${release.tag} -R ${github.repository}">
+            <condition>
+                <or>
+                    <matches string="${gh.drafts}" pattern="^\Q${release.tag}\E\r?$" multiline="true" />
+                    <and>
+                        <equals arg1="${gh.release.rc}" arg2="0" />
+                        <equals arg1="${gh.release.draft}" arg2="true" />
+                    </and>
+                </or>
+            </condition>
+        </fail>
+        <fail message="The release ${release.tag} is already published: https://github.com/${github.repository}/releases/tag/${release.tag}">
+            <condition>
+                <equals arg1="${gh.release.rc}" arg2="0" />
+            </condition>
+        </fail>
+        <fail message="gh could not read the release ${release.tag}: ${gh.release.err}">
+            <condition>
+                <not><contains string="${gh.release.err}" substring="release not found" /></not>
+            </condition>
+        </fail>
+    </target>
+
+    <!-- The tag: missing, or existing - then on HEAD only (release of a tag without release). -->
+    <target name="releaseCheckTag">
+        <exec executable="${gh}" outputproperty="gh.tag.type" errorproperty="gh.tag.err" resultproperty="gh.tag.rc">
+            <arg value="api" />
+            <arg value="repos/${github.repository}/git/ref/tags/${release.tag}" />
+            <arg value="--jq" />
+            <arg value=".object.type" />
+        </exec>
+        <condition property="release.tag.exists">
+            <equals arg1="${gh.tag.rc}" arg2="0" />
+        </condition>
+        <condition property="release.tag.missing">
+            <and>
+                <not><equals arg1="${gh.tag.rc}" arg2="0" /></not>
+                <contains string="${gh.tag.err}" substring="HTTP 404" />
+            </and>
+        </condition>
+        <fail message="gh could not read the tag ${release.tag}: ${gh.tag.err}">
+            <condition>
+                <and>
+                    <not><isset property="release.tag.exists" /></not>
+                    <not><isset property="release.tag.missing" /></not>
+                </and>
+            </condition>
+        </fail>
+        <condition property="release.tag.annotated">
+            <and>
+                <isset property="release.tag.exists" />
+                <equals arg1="${gh.tag.type}" arg2="tag" />
+            </and>
+        </condition>
+    </target>
+
+    <target name="releaseCheckTagSha" if="release.tag.exists">
+        <exec executable="${gh}" outputproperty="gh.tag.sha" errorproperty="gh.tag.sha.err" resultproperty="gh.tag.sha.rc">
+            <arg value="api" />
+            <arg value="repos/${github.repository}/git/ref/tags/${release.tag}" />
+            <arg value="--jq" />
+            <arg value=".object.sha" />
+        </exec>
+        <fail message="gh could not read the tag ${release.tag}: ${gh.tag.sha.err}">
+            <condition>
+                <not><equals arg1="${gh.tag.sha.rc}" arg2="0" /></not>
+            </condition>
+        </fail>
+    </target>
+
+    <!-- An annotated tag points to a tag object; its object is the commit. -->
+    <target name="releaseCheckTagCommit" if="release.tag.annotated">
+        <exec executable="${gh}" outputproperty="release.tag.commit" errorproperty="gh.tag.commit.err" resultproperty="gh.tag.commit.rc">
+            <arg value="api" />
+            <arg value="repos/${github.repository}/git/tags/${gh.tag.sha}" />
+            <arg value="--jq" />
+            <arg value=".object.sha" />
+        </exec>
+        <fail message="gh could not read the tag object ${gh.tag.sha}: ${gh.tag.commit.err}">
+            <condition>
+                <not><equals arg1="${gh.tag.commit.rc}" arg2="0" /></not>
+            </condition>
+        </fail>
+    </target>
+
+    <!-- The clone: no changes, HEAD = main on GitHub, an existing tag on HEAD. -->
+    <target name="releaseCheckClone">
+        <exec executable="${git}" dir="${basedir}" outputproperty="git.status" errorproperty="git.status.err" resultproperty="git.status.rc">
+            <arg value="status" />
+            <arg value="--porcelain" />
+        </exec>
+        <fail message="git status failed: ${git.status.err}">
+            <condition>
+                <not><equals arg1="${git.status.rc}" arg2="0" /></not>
+            </condition>
+        </fail>
+        <fail message="The clone has changes; the ZIP must be built from the commit of the tag. Commit and push first:${line.separator}${git.status}">
+            <condition>
+                <not><equals arg1="${git.status}" arg2="" /></not>
+            </condition>
+        </fail>
+        <exec executable="${git}" dir="${basedir}" outputproperty="head.sha" errorproperty="head.sha.err" resultproperty="head.sha.rc">
+            <arg value="rev-parse" />
+            <arg value="HEAD" />
+        </exec>
+        <exec executable="${gh}" outputproperty="main.sha" errorproperty="main.sha.err" resultproperty="main.sha.rc">
+            <arg value="api" />
+            <arg value="repos/${github.repository}/commits/main" />
+            <arg value="--jq" />
+            <arg value=".sha" />
+        </exec>
+        <fail message="Could not read HEAD (${head.sha.err}) or main on GitHub (${main.sha.err}).">
+            <condition>
+                <or>
+                    <not><equals arg1="${head.sha.rc}" arg2="0" /></not>
+                    <not><equals arg1="${main.sha.rc}" arg2="0" /></not>
+                </or>
+            </condition>
+        </fail>
+        <fail message="HEAD ${head.sha} is not main on GitHub (${main.sha}). Push first, or check out main.">
+            <condition>
+                <not><equals arg1="${head.sha}" arg2="${main.sha}" /></not>
+            </condition>
+        </fail>
+        <!-- Only set for a tag, whose type is commit (lightweight tag). -->
+        <property name="release.tag.commit" value="${gh.tag.sha}" />
+        <fail message="The tag ${release.tag} exists on ${release.tag.commit}, not on HEAD ${head.sha}.">
+            <condition>
+                <and>
+                    <isset property="release.tag.exists" />
+                    <not><equals arg1="${release.tag.commit}" arg2="${head.sha}" /></not>
+                </and>
+            </condition>
+        </fail>
+        <exec executable="${git}" dir="${basedir}" outputproperty="git.user.name" errorproperty="git.user.name.err" resultproperty="git.user.name.rc">
+            <arg value="config" />
+            <arg value="user.name" />
+        </exec>
+        <exec executable="${git}" dir="${basedir}" outputproperty="git.user.email" errorproperty="git.user.email.err" resultproperty="git.user.email.rc">
+            <arg value="config" />
+            <arg value="user.email" />
+        </exec>
+        <!-- The tagger counts only, if the target creates the tag. -->
+        <fail message="Set user.name and user.email in the git configuration; they become the tagger.">
+            <condition>
+                <and>
+                    <isset property="release.tag.missing" />
+                    <or>
+                        <not><equals arg1="${git.user.name.rc}" arg2="0" /></not>
+                        <not><equals arg1="${git.user.email.rc}" arg2="0" /></not>
+                    </or>
+                </and>
+            </condition>
+        </fail>
+        <!-- Ant decodes the output of git with the default charset of the JVM; git writes UTF-8.
+             A -Dfile.encoding other than UTF-8, e.g. Cp1252 in the RDi.ini of an RDi, stops here. -->
+        <fail message="The tagger ${git.user.name} &lt;${git.user.email}&gt; is not plain ASCII, and the JVM does not run with UTF-8 (file.encoding=${file.encoding}): the tag would get a garbled name. Run Ant in a JVM with -Dfile.encoding=UTF-8, e.g. on the console with ANT_OPTS=-Dfile.encoding=UTF-8.">
+            <condition>
+                <and>
+                    <isset property="release.tag.missing" />
+                    <not>
+                        <or>
+                            <and>
+                                <matches string="${git.user.name}" pattern="^[ -~]+$" />
+                                <matches string="${git.user.email}" pattern="^[ -~]+$" />
+                            </and>
+                            <equals arg1="${file.encoding}" arg2="UTF-8" casesensitive="false" />
+                            <equals arg1="${file.encoding}" arg2="UTF8" casesensitive="false" />
+                        </or>
+                    </not>
+                </and>
+            </condition>
+        </fail>
+        <condition property="release.create.tag">
+            <and>
+                <isset property="release.write" />
+                <isset property="release.tag.missing" />
+            </and>
+        </condition>
+        <condition property="release.mode" value="tag and release" else="release only (the tag exists on HEAD)">
+            <isset property="release.tag.missing" />
+        </condition>
+    </target>
+
+    <target name="releaseShow" xmlns:if="ant:if" xmlns:unless="ant:unless">
+        <echo message="Repository:  ${github.repository}" />
+        <echo message="Commit:      ${head.sha}" />
+        <echo message="Creates:     ${release.mode}" />
+        <echo message="Tag:         ${release.tag}" />
+        <echo message="Tag message: ${release.tag.message}" if:set="release.tag.missing" />
+        <echo message="Tagger:      ${git.user.name} &lt;${git.user.email}&gt;" if:set="release.tag.missing" />
+        <echo message="Title:       ${release.title}" />
+        <echo message="Notes:       ${release.notes}" />
+        <echo message="File:        ${site.zip.file}" />
+        <echo message="Dry run: nothing was created on GitHub." unless:set="release.write" />
+    </target>
+
+    <!-- Without validargs: with validargs and no console Ant 1.9.6 asks in an endless loop. -->
+    <target name="releaseConfirm" if="release.write">
+        <input message="Create ${release.mode} ${release.tag} on ${head.sha}? (y/n)" addproperty="release.confirmed" />
+        <condition property="release.confirmed.yes">
+            <or>
+                <equals arg1="${release.confirmed}" arg2="y" casesensitive="false" trim="true" />
+                <equals arg1="${release.confirmed}" arg2="yes" casesensitive="false" trim="true" />
+                <equals arg1="${release.confirmed}" arg2="true" casesensitive="false" trim="true" />
+            </or>
+        </condition>
+        <fail unless="release.confirmed.yes" message="Not confirmed: nothing was created on GitHub." />
+    </target>
+
+    <!-- Annotated tag: first the tag object, then the reference to it. -->
+    <target name="releaseCreateTag" if="release.create.tag">
+        <exec executable="${gh}" outputproperty="gh.new.tag.sha" errorproperty="gh.new.tag.err" resultproperty="gh.new.tag.rc">
+            <arg value="api" />
+            <arg value="repos/${github.repository}/git/tags" />
+            <arg value="-f" />
+            <arg value="tag=${release.tag}" />
+            <arg value="-f" />
+            <arg value="message=${release.tag.message}" />
+            <arg value="-f" />
+            <arg value="object=${head.sha}" />
+            <arg value="-f" />
+            <arg value="type=commit" />
+            <arg value="-f" />
+            <arg value="tagger[name]=${git.user.name}" />
+            <arg value="-f" />
+            <arg value="tagger[email]=${git.user.email}" />
+            <arg value="--jq" />
+            <arg value=".sha" />
+        </exec>
+        <fail message="gh could not create the tag object: ${gh.new.tag.err}">
+            <condition>
+                <not><equals arg1="${gh.new.tag.rc}" arg2="0" /></not>
+            </condition>
+        </fail>
+        <exec executable="${gh}" outputproperty="gh.new.ref" errorproperty="gh.new.ref.err" resultproperty="gh.new.ref.rc">
+            <arg value="api" />
+            <arg value="repos/${github.repository}/git/refs" />
+            <arg value="-f" />
+            <arg value="ref=refs/tags/${release.tag}" />
+            <arg value="-f" />
+            <arg value="sha=${gh.new.tag.sha}" />
+            <arg value="--jq" />
+            <arg value=".ref" />
+        </exec>
+        <fail message="gh could not create refs/tags/${release.tag} for the tag object ${gh.new.tag.sha}: ${gh.new.ref.err}">
+            <condition>
+                <not><equals arg1="${gh.new.ref.rc}" arg2="0" /></not>
+            </condition>
+        </fail>
+        <echo message="Created the tag ${release.tag} (tag object ${gh.new.tag.sha}) on ${head.sha}." />
+    </target>
+
+    <target name="releaseCreateRelease" if="release.write">
+        <exec executable="${gh}" outputproperty="gh.new.release" errorproperty="gh.new.release.err" resultproperty="gh.new.release.rc">
+            <arg value="release" />
+            <arg value="create" />
+            <arg value="${release.tag}" />
+            <arg file="${site.zip.file}" />
+            <arg value="-R" />
+            <arg value="${github.repository}" />
+            <arg value="--verify-tag" />
+            <arg value="--title" />
+            <arg value="${release.title}" />
+            <arg value="--notes" />
+            <arg value="${release.notes}" />
+        </exec>
+        <fail message="gh could not create the release ${release.tag}: ${gh.new.release.err}">
+            <condition>
+                <not><equals arg1="${gh.new.release.rc}" arg2="0" /></not>
+            </condition>
+        </fail>
+        <echo message="Created the release: ${gh.new.release}" />
+        <echo message="Fetch the tag into this clone: git fetch origin tag ${release.tag}" />
     </target>
 
 </project>
