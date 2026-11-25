@@ -19,13 +19,13 @@ Local values go into the file `local.properties` next to `build.xml`, which git 
 
 | Property | Default | Meaning |
 |---|---|---|
-| `eclipse.home` | `C:/IBM/Eclipse_4.31` | the Eclipse 4.31 installation |
+| `build.eclipse.home` | `C:/IBM/Eclipse_4.31` | the Eclipse 4.31 installation |
 | `site.dir` | `target` | the folder of the ZIP file |
 | `work.parent` | the temp folder | the parent of the work folder of the p2 publisher; its path must contain only the letters A-Z, digits and `. _ - ~` |
 | `gh`, `git` | `gh`, `git` | the GitHub CLI and git, if they are not on the `PATH` |
 
 ```properties
-eclipse.home=D:/eclipse-4.31
+build.eclipse.home=D:/eclipse-4.31
 ```
 
 ## Release

@@ -4,11 +4,12 @@
   as a GitHub release.
 
   Run it in RDi with Run As > Ant Build, or on the command line with "ant" in this folder.
-  Needs Ant 1.9.1 or later and an Eclipse 4.31 installation (property eclipse.home): its eclipsec.exe
-  runs the p2 publisher, and its plugins folder provides org.hamcrest 2.2.0 and its source bundle.
-  The target release needs git and the GitHub CLI (gh), logged in with write access to the repository.
-  Local values (eclipse.home, site.dir, work.parent, gh, git) go into the file local.properties,
-  which git ignores. The version is the one of feature/feature.xml.
+  Needs Ant 1.9.1 or later and an Eclipse 4.31 installation (property build.eclipse.home): its
+  eclipsec.exe runs the p2 publisher, and its plugins folder provides org.hamcrest 2.2.0 and its
+  source bundle.
+  The target release needs git and the GitHub CLI (gh), logged in with write access to the
+  repository. Local values (build.eclipse.home, site.dir, work.parent, gh, git) go into the file
+  local.properties, which git ignores. The version is the one of feature/feature.xml.
 
   Targets:
     build    builds target/Hamcrest-2.2-for-JUnit-4-RDi-9.9_<version>.zip (default)
@@ -22,7 +23,8 @@
     <!-- feature.id and feature.version from the attributes of the element feature. -->
     <xmlproperty file="feature/feature.xml" collapseAttributes="true" />
 
-    <property name="eclipse.home" location="C:/IBM/Eclipse_4.31" />
+    <!-- Not eclipse.home: Ant in RDi (org.eclipse.ant.core) sets it to the RDi installation. -->
+    <property name="build.eclipse.home" location="C:/IBM/Eclipse_4.31" />
     <property name="hamcrest.version" value="2.2.0" />
     <property name="repository.name" value="Hamcrest 2.2 for the JUnit 4 container (RDi 9.9)" />
     <property name="category.qualifier" value="de.tools400.hamcrest.junit4" />
@@ -37,14 +39,14 @@
     <property name="work.parent" location="${java.io.tmpdir}" />
     <property name="work.dir" location="${work.parent}/hamcrest-junit4-build" />
 
-    <property name="eclipsec" location="${eclipse.home}/eclipsec.exe" />
-    <property name="hamcrest.jar" location="${eclipse.home}/plugins/org.hamcrest_${hamcrest.version}.jar" />
-    <property name="hamcrest.source.jar" location="${eclipse.home}/plugins/org.hamcrest.source_${hamcrest.version}.jar" />
+    <property name="eclipsec" location="${build.eclipse.home}/eclipsec.exe" />
+    <property name="hamcrest.jar" location="${build.eclipse.home}/plugins/org.hamcrest_${hamcrest.version}.jar" />
+    <property name="hamcrest.source.jar" location="${build.eclipse.home}/plugins/org.hamcrest.source_${hamcrest.version}.jar" />
 
     <target name="build" depends="check, clean, prepare, publish, createZipFile" description="Builds the archived update site" />
 
     <target name="check">
-        <fail message="Missing ${eclipsec}. Set the property eclipse.home to an Eclipse 4.31 installation.">
+        <fail message="Missing ${eclipsec}. Set the property build.eclipse.home to an Eclipse 4.31 installation.">
             <condition>
                 <not><available file="${eclipsec}" /></not>
             </condition>
